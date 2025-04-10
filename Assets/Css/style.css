@@ -1,0 +1,178 @@
+/* Custom Variables */
+:root {
+    --brown: rgb(83, 50, 11);
+    --light-brown: rgb(59, 34, 0);
+    --cream: rgb(255, 255, 253);
+}
+
+/* Base Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+.text-brown {
+    color: var(--light-brown);
+}
+
+.bg-brown {
+    background-color: var(--brown);
+}
+
+/* Top Info Bar */
+.top-info-bar {
+    background-color: var(--cream);
+    font-size: 0.85rem;
+}
+
+.policy-links ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.policy-links a {
+    text-decoration: none;
+    position: relative;
+    transition: color 0.3s ease;
+}
+
+.policy-links a:hover {
+    color: var(--brown);
+}
+
+.policy-links a::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 1px;
+    bottom: -2px;
+    left: 0;
+    background-color: var(--light-brown);
+    transition: width 0.3s ease;
+}
+
+.policy-links a:hover::after {
+    width: 100%;
+}
+
+.contact-info a {
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.contact-info a:hover {
+    color: var(--brown);
+}
+
+/* Main Header */
+.main-header {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.search-box input {
+    border: 1px solid #ddd;
+    padding-left: 2.5rem;
+}
+
+.search-box i {
+    color: #777;
+}
+
+.user-actions ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.user-actions a {
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.user-actions a:hover {
+    color: var(--brown);
+}
+
+/* Main Navigation */
+.main-navigation {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+}
+
+.main-navigation ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.main-navigation a {
+    text-decoration: none;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
+    border-radius: 4px;
+}
+
+.main-navigation a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Dropdown Menu */
+.dropdown {
+    position: relative;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: white;
+    min-width: 200px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 4px 4px;
+    z-index: 1000;
+    padding: 0.5rem 0;
+}
+
+.dropdown:hover .dropdown-menu {
+    display: block;
+}
+
+.dropdown-item {
+    color: #333 !important;
+    padding: 0.5rem 1.5rem !important;
+    display: block;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa !important;
+    color: var(--brown) !important;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+    .main-header .container > div {
+        flex-wrap: wrap;
+    }
+    
+    .search-box {
+        order: 1;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .logo {
+        order: 2;
+        margin: 0 auto 1rem;
+    }
+    
+    .user-actions {
+        order: 3;
+        margin-left: auto;
+    }
+    
+    .main-navigation ul {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+}
