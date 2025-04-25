@@ -1,87 +1,309 @@
-<?php
+<style>
+    .color-box {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        margin-right: 1px;
+        border: 1px solid #ddd;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
 
-// Fetch products from database
+    .color-box:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    }
+
+    .color-box.selected,
+    .box.selected {
+        border: 2px solid #007bff;
+        transform: scale(1.1);
+    }
+
+    .box-container {
+        margin: 10px 0;
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+    }
+
+    .box {
+        padding: 3px 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 12px;
+        background: #f8f9fa;
+        cursor: pointer;
+    }
+
+    .product-card img {
+        background-color: white;
+    }
+
+    .stock-status {
+        font-size: 12px;
+        color: #dc3545;
+    }
+
+    .stock-status.in-stock {
+        color: #28a745;
+    }
+</style>
+
+<?php
+function getColorCodesUnique($colorName)
+{
+    $colors = [
+        'red' => '#ff0000',
+        'green' => '#00ff00',
+        'blue' => '#0000ff',
+        'yellow' => '#ffff00',
+        'black' => '#000000',
+        'white' => '#ffffff',
+        'gray' => '#808080',
+        'grey' => '#808080',
+        'purple' => '#800080',
+        'orange' => '#ffa500',
+        'pink' => '#ffc0cb',
+        'brown' => '#a52a2a',
+        'cyan' => '#00ffff',
+        'magenta' => '#ff00ff',
+        'silver' => '#c0c0c0',
+        'gold' => '#ffd700',
+        'maroon' => '#800000',
+        'olive' => '#808000',
+        'lime' => '#00ff00',
+        'teal' => '#008080',
+        'navy' => '#000080',
+        'violet' => '#ee82ee',
+        'indigo' => '#4b0082',
+        'turquoise' => '#40e0d0',
+        'lavender' => '#e6e6fa',
+        'coral' => '#ff7f50',
+        'salmon' => '#fa8072',
+        'beige' => '#f5f5dc',
+        'ivory' => '#fffff0',
+        'khaki' => '#f0e68c'
+    ];
+
+    $lowerColor = strtolower(trim($colorName));
+    return $colors[$lowerColor] ?? '#cccccc';
+}
+
+// Fetch products and their variations from database
 $query = "
     SELECT 
-    p.product_id, 
-    p.name, 
-    p.description, 
-    p.short_description,
-    p.price, 
-    p.sale_price, 
-    p.sku,
-    p.stock_status,
-    (
-        SELECT image_url 
-        FROM product_images 
-        WHERE product_id = p.product_id AND is_main = 1 
-        LIMIT 1
-    ) AS main_image,
-    GROUP_CONCAT(DISTINCT at.term_name SEPARATOR '|') AS attribute_terms
-FROM 
-    products p
-LEFT JOIN 
-    product_attributes pa ON p.product_id = pa.product_id
-LEFT JOIN 
-    product_attribute_terms pat ON pa.id = pat.product_attribute_id
-LEFT JOIN 
-    attribute_term at ON pat.attribute_term_id = at.attribute_term_id
-WHERE 
-    p.status = 'publish'
-GROUP BY 
-    p.product_id
-ORDER BY 
-    p.created_at DESC
-LIMIT 8;
-";
+        p.product_id, 
+        p.name, 
+        p.description, 
+        p.short_description,
+        p.price, 
+        p.sale_price, 
+        p.sku,
+        p.stock_status,
+        (SELECT image_url FROM product_images WHERE product_id = p.product_id AND is_main = 1 LIMIT 1) AS main_image,
+        GROUP_CONCAT(DISTINCT CONCAT(a.name, ':', at.term_name, ':', at.attribute_term_id) SEPARATOR '|') AS attribute_terms,
+        pv.variation_id,
+        pv.sku AS variation_sku,
+        pv.price AS variation_price,
+        pv.sale_price AS variation_sale_price,
+        pv.stock_quantity,
+        pv.attributes AS variation_attributes
+    FROM 
+        products p
+    LEFT JOIN 
+        product_images pi ON p.product_id = pi.product_id
+    LEFT JOIN 
+        product_attributes pa ON p.product_id = pa.product_id
+    LEFT JOIN 
+        product_attribute_terms pat ON pa.id = pat.product_attribute_id
+    LEFT JOIN 
+        attribute_term at ON pat.attribute_term_id = at.attribute_term_id
+    LEFT JOIN 
+        attributes a ON pa.attribute_id = a.id
+    LEFT JOIN 
+        product_variations pv ON p.product_id = pv.product_id
+    WHERE 
+        p.status = 'published'
+    GROUP BY 
+        p.product_id, pv.variation_id
+    ORDER BY 
+        p.created_at DESC
+    LIMIT 8";
 
 $result = $conn->query($query);
+if (!$result) {
+    error_log("Query Error: " . $conn->error);
+    die("Database query failed: " . $conn->error);
+}
 
 $products = [];
+$current_product_id = null;
 
 if ($result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
-        $row['attribute_terms'] = !empty($row['attribute_terms']) ?
-            array_unique(explode('|', $row['attribute_terms'])) : [];
-        $row['main_image'] = $row['main_image'] ?: './Assets/Images/Category_1.jpg';
-        $products[] = $row;
+        error_log("Processing row: product_id={$row['product_id']}, variation_id=" . ($row['variation_id'] ?? 'null'));
+        if ($row['product_id'] !== $current_product_id) {
+            $current_product_id = $row['product_id'];
+            $product = [
+                'product_id' => $row['product_id'],
+                'name' => $row['name'],
+                'description' => $row['description'],
+                'short_description' => $row['short_description'],
+                'price' => $row['price'],
+                'sale_price' => $row['sale_price'],
+                'sku' => $row['sku'],
+                'stock_status' => $row['stock_status'],
+                'main_image' => $row['main_image'] ?: './Assets/Images/Category_1.jpg',
+                'attribute_terms' => !empty($row['attribute_terms']) ? array_unique(explode('|', $row['attribute_terms'])) : [],
+                'variations' => []
+            ];
+            $products[$row['product_id']] = $product;
+        }
+        if ($row['variation_id']) {
+            $attributes = json_decode($row['variation_attributes'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                error_log("JSON decode error for variation_id {$row['variation_id']}: " . json_last_error_msg());
+                $attributes = [];
+            }
+            $products[$row['product_id']]['variations'][] = [
+                'variation_id' => $row['variation_id'],
+                'sku' => $row['variation_sku'],
+                'price' => $row['variation_price'],
+                'sale_price' => $row['variation_sale_price'],
+                'stock_quantity' => $row['stock_quantity'],
+                'attributes' => $attributes
+            ];
+        }
     }
+} else {
+    error_log("No products found in query");
 }
 
+// Calculate default price and SKU for products with variations
+foreach ($products as &$product) {
+    if (!empty($product['variations'])) {
+        // Find the cheapest variation
+        $cheapestVariation = array_reduce($product['variations'], function ($carry, $variation) {
+            $price = floatval($variation['sale_price'] ?: $variation['price']);
+            if ($carry === null || $price < floatval($carry['sale_price'] ?: $carry['price'])) {
+                return $variation;
+            }
+            return $carry;
+        }, null);
+        if ($cheapestVariation) {
+            $product['default_price'] = number_format($cheapestVariation['sale_price'] ?: $cheapestVariation['price'], 2);
+            $product['default_sku'] = $cheapestVariation['sku'] ?: 'N/A';
+            $product['default_stock_status'] = $cheapestVariation['stock_quantity'] > 0 ? 'instock' : 'outofstock';
+            $product['default_variation_id'] = $cheapestVariation['variation_id'];
+            // Store the default term ID for auto-selection
+            $product['default_term_id'] = !empty($cheapestVariation['attributes']) ? reset($cheapestVariation['attributes']) : null;
+        } else {
+            $product['default_price'] = number_format($product['sale_price'] ?: $product['price'], 2);
+            $product['default_sku'] = $product['sku'] ?: 'N/A';
+            $product['default_stock_status'] = $product['stock_status'];
+            $product['default_variation_id'] = null;
+            $product['default_term_id'] = null;
+        }
+    } else {
+        $product['default_price'] = number_format($product['sale_price'] ?: $product['price'], 2);
+        $product['default_sku'] = $product['sku'] ?: 'N/A';
+        $product['default_stock_status'] = $product['stock_status'];
+        $product['default_variation_id'] = null;
+        $product['default_term_id'] = null;
+    }
+}
+unset($product); // Unset reference to avoid issues
+
+// Convert $products to a list for array_map
+$products_list = array_values($products);
+error_log("Products fetched: " . json_encode($products_list, JSON_PRETTY_PRINT));
 ?>
 
 <div class="product-carousel-container unique">
     <h1 class="text-center mt-5 mb-4 heading-main">Unique Products</h1>
     <div class="container-fluid">
         <!-- Swiper container -->
-        <div class="swiper productSwipers">
+        <div class="swiper uniqueProductsSwiper">
             <div class="swiper-wrapper">
                 <?php foreach ($products as $product): ?>
                     <!-- Dynamic Product Slide -->
                     <div class="swiper-slide">
-                        <div class="product-card">
+                        <div class="product-card" data-product-id="<?= $product['product_id'] ?>">
                             <img src="./Assets/uploads/products/<?= htmlspecialchars($product['main_image']) ?>"
                                 class="product-img" alt="<?= htmlspecialchars($product['name']) ?>">
                             <div class="product-body">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <div class="product-price">
-                                        $<?= number_format($product['sale_price'] ?: $product['price'], 2) ?></div>
-                                    <div class="pb-2"><small>SKU <?= htmlspecialchars($product['sku'] ?: 'N/A') ?></small>
+                                    <div class="product-price"
+                                        data-default-price="<?= $product['default_price'] ?>">
+                                        $<?= $product['default_price'] ?>
+                                    </div>
+                                    <div class="pb-2">
+                                        <small class="product-sku"
+                                            data-default-sku="<?= htmlspecialchars($product['default_sku']) ?>">
+                                            SKU <?= htmlspecialchars($product['default_sku']) ?>
+                                        </small>
                                     </div>
                                 </div>
                                 <h5 class="product-title"><?= htmlspecialchars($product['name']) ?></h5>
                                 <p class="product-desc">
                                     <?= htmlspecialchars($product['short_description'] ?: substr($product['description'], 0, 100) . (strlen($product['description']) > 100 ? '...' : '')) ?>
                                 </p>
+                                <div class="stock-status <?= $product['default_stock_status'] === 'instock' ? 'in-stock' : '' ?>"
+                                    data-default-status="<?= $product['default_stock_status'] === 'instock' ? 'In Stock' : 'Out of Stock' ?>">
+                                    <?= $product['default_stock_status'] === 'instock' ? 'In Stock' : 'Out of Stock' ?>
+                                </div>
                                 <div class="box-container">
                                     <?php if (!empty($product['attribute_terms'])): ?>
-                                        <?php foreach (array_slice($product['attribute_terms'], 0, 3) as $term): ?>
-                                            <div class="box"><?= htmlspecialchars($term) ?></div>
-                                        <?php endforeach; ?>
-                                    <?php else: ?>
-                                        <div class="box">1ft</div>
-                                        <div class="box">2ft</div>
-                                        <div class="box">3ft</div>
+                                        <?php
+                                        $color_terms = [];
+                                        $other_terms = [];
+                                        $term_map = [];
+
+                                        foreach ($product['attribute_terms'] as $term) {
+                                            if (preg_match('/(.+):(.+):(\d+)/', $term, $matches)) {
+                                                $attr_name = $matches[1];
+                                                $term_name = $matches[2];
+                                                $term_id = $matches[3];
+                                                $term_map[$term_id] = $term_name;
+                                                if (preg_match('/(color|colour|colore?)/i', $attr_name)) {
+                                                    $color_terms[] = ['name' => $term_name, 'id' => $term_id];
+                                                } else {
+                                                    $other_terms[] = ['name' => $term_name, 'id' => $term_id];
+                                                }
+                                            }
+                                        }
+                                        ?>
+
+                                        <!-- Render other terms first -->
+                                        <?php if (!empty($other_terms)): ?>
+                                            <?php foreach (array_slice($other_terms, 0, 3) as $term): ?>
+                                                <div class="box" data-term-id="<?= $term['id'] ?>"
+                                                    data-product-id="<?= $product['product_id'] ?>">
+                                                    <?= htmlspecialchars($term['name']) ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+
+                                        <!-- Add a line break if there are other terms and color terms -->
+                                        <?php if (!empty($other_terms) && !empty($color_terms)): ?>
+                                            <div style="width: 100%;"></div>
+                                        <?php endif; ?>
+
+                                        <!-- Render color terms last -->
+                                        <?php if (!empty($color_terms)): ?>
+                                            <?php foreach (array_slice($color_terms, 0, 3) as $term): ?>
+                                                <?php
+                                                $clean_color = preg_replace('/[^a-z]/i', '', strtolower($term['name']));
+                                                $color_code = getColorCodesUnique($clean_color);
+                                                ?>
+                                                <div class="color-box" data-term-id="<?= $term['id'] ?>"
+                                                    data-product-id="<?= $product['product_id'] ?>"
+                                                    style="background-color: <?= htmlspecialchars($color_code) ?>;"
+                                                    title="<?= htmlspecialchars($term['name']) ?>"></div>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                                 <div class="rating">★★★★☆ (4.5)</div>
@@ -97,6 +319,9 @@ if ($result->num_rows > 0) {
                                         <i class="fa-solid fa-cart-plus"></i>
                                     </button>
                                 </div>
+                                <!-- Hidden input to store selected variation ID -->
+                                <input type="hidden" class="selected-variation" data-id="<?= $product['product_id'] ?>"
+                                    value="<?= htmlspecialchars($product['default_variation_id'] ?: '') ?>">
                             </div>
                         </div>
                     </div>
@@ -114,11 +339,15 @@ if ($result->num_rows > 0) {
     </div>
 </div>
 
-<!-- Keep your existing JavaScript exactly the same -->
 <script>
+    // Store variation data in JavaScript
+    const productVariationsUnique = <?php echo json_encode($products_list, JSON_PRETTY_PRINT) ?>;
+    console.log('productVariationsUnique:', productVariationsUnique);
+
     document.addEventListener('DOMContentLoaded', function () {
-        const mineProductsSwiper = new Swiper('.productSwipers', {
-            slidesPerView: 4, // Show 3 cards by default on large screens
+        // Initialize Swiper
+        const uniqueProductsSwiper = new Swiper('.uniqueProductsSwiper', {
+            slidesPerView: 4,
             spaceBetween: 20,
             navigation: {
                 nextEl: '.swiper-button-next',
@@ -129,57 +358,240 @@ if ($result->num_rows > 0) {
                 clickable: true,
             },
             breakpoints: {
-                // When window width is >= 320px (mobile)
-                320: {
-                    slidesPerView: 1,
-                    spaceBetween: 10,
-                },
-                // When window width is >= 768px (tablet)
-                768: {
-                    slidesPerView: 2,
-                    spaceBetween: 15,
-                },
-                // When window width is >= 1024px (desktop)
-                1024: {
-                    slidesPerView: 4,
-                    spaceBetween: 20,
+                320: { slidesPerView: 1, spaceBetween: 10 },
+                768: { slidesPerView: 2, spaceBetween: 15 },
+                1024: { slidesPerView: 4, spaceBetween: 20 }
+            }
+        });
+
+        // Initialize default variations
+        document.querySelectorAll('.unique .product-card').forEach(productCard => {
+            const productId = productCard.getAttribute('data-product-id');
+            const product = productVariationsUnique.find(p => p.product_id == productId);
+
+            if (product && product.variations && product.variations.length > 0) {
+                // Find the cheapest variation
+                const cheapestVariation = product.variations.reduce((prev, current) => {
+                    const prevPrice = parseFloat(prev.sale_price || prev.price);
+                    const currentPrice = parseFloat(current.sale_price || current.price);
+                    return (currentPrice < prevPrice) ? current : prev;
+                });
+
+                // Find the first term ID from the cheapest variation's attributes
+                const termId = cheapestVariation.attributes ? Object.values(cheapestVariation.attributes)[0] : null;
+
+                // Update the display
+                const priceElement = productCard.querySelector('.product-price');
+                const skuElement = productCard.querySelector('.product-sku');
+                const stockStatusElement = productCard.querySelector('.stock-status');
+                const variationInput = productCard.querySelector('.selected-variation');
+
+                if (cheapestVariation) {
+                    // Update price
+                    const price = cheapestVariation.sale_price || cheapestVariation.price;
+                    priceElement.textContent = `$${parseFloat(price).toFixed(2)}`;
+                    console.log(`Initialized price for product ${productId}: $${parseFloat(price).toFixed(2)}`);
+
+                    // Update SKU
+                    skuElement.textContent = `SKU ${cheapestVariation.sku || 'N/A'}`;
+                    console.log(`Initialized SKU for product ${productId}: ${cheapestVariation.sku || 'N/A'}`);
+
+                    // Update stock status
+                    const stockText = cheapestVariation.stock_quantity > 0 ? 'In Stock' : 'Out of Stock';
+                    stockStatusElement.textContent = stockText;
+                    stockStatusElement.className = `stock-status ${cheapestVariation.stock_quantity > 0 ? 'in-stock' : ''}`;
+                    console.log(`Initialized stock status for product ${productId}: ${stockText}`);
+
+                    // Store variation ID
+                    variationInput.value = cheapestVariation.variation_id;
+                    console.log(`Initialized variation ID for product ${productId}: ${cheapestVariation.variation_id}`);
+
+                    // Highlight the corresponding attribute
+                    if (termId) {
+                        productCard.querySelectorAll('.color-box, .box').forEach(el => {
+                            el.classList.remove('selected');
+                            if (el.getAttribute('data-term-id') == termId) {
+                                el.classList.add('selected');
+                            }
+                        });
+                        console.log(`Highlighted attribute termId ${termId} for product ${productId}`);
+                    }
                 }
             }
         });
 
+        // Use event delegation for quantity buttons
+        document.querySelector('.unique').addEventListener('click', function (event) {
+            const target = event.target;
+            if (!target.classList.contains('quantity-btn')) return;
 
-        // Quantity control functionality for uniqued Products
-        document.querySelectorAll('.unique .quantity-btn').forEach(button => {
-            button.addEventListener('click', function () {
-                const productId = this.getAttribute('data-id');
-                const input = document.querySelector(`.unique .quantity-input[data-id="${productId}"]`);
-                let value = parseInt(input.value);
+            const productId = target.getAttribute('data-id');
+            const input = document.querySelector(`.unique .quantity-input[data-id="${productId}"]`);
+            let value = parseInt(input.value) || 0;
 
-                if (this.classList.contains('plus')) {
-                    value = isNaN(value) ? 1 : value + 1;
-                } else if (this.classList.contains('minus') && value > 0) {
-                    value -= 1;
+            console.log(`Quantity button clicked for product ${productId}, current value: ${value}`);
+
+            if (target.classList.contains('plus')) {
+                value++;
+            } else if (target.classList.contains('minus') && value > 0) {
+                value--;
+            }
+
+            input.value = value;
+            console.log(`Updated quantity for product ${productId} to: ${value}`);
+        });
+
+        // Attribute click handler
+        document.querySelectorAll('.unique .color-box, .unique .box').forEach(element => {
+            element.addEventListener('click', function () {
+                const productId = this.getAttribute('data-product-id');
+                const termId = this.getAttribute('data-term-id');
+                console.log(`Attribute clicked - productId: ${productId}, termId: ${termId}`);
+
+                // Find the product card
+                const productCard = this.closest('.product-card');
+                if (!productCard) {
+                    console.error(`No product card found for productId: ${productId}`);
+                    return;
                 }
 
-                input.value = value;
+                // Get UI elements
+                const priceElement = productCard.querySelector('.product-price');
+                const skuElement = productCard.querySelector('.product-sku');
+                const stockStatusElement = productCard.querySelector('.stock-status');
+                const variationInput = productCard.querySelector('.selected-variation');
+
+                if (!priceElement || !skuElement || !stockStatusElement || !variationInput) {
+                    console.error('Missing UI elements in product card:', {
+                        priceElement, skuElement, stockStatusElement, variationInput
+                    });
+                    return;
+                }
+
+                // Remove selected class from all attributes in this product card
+                productCard.querySelectorAll('.color-box, .box').forEach(el => el.classList.remove('selected'));
+                this.classList.add('selected');
+
+                // Find variation matching the selected term
+                let selectedVariation = null;
+                const product = productVariationsUnique.find(p => p.product_id == productId);
+
+                if (product && product.variations) {
+                    const variations = Array.isArray(product.variations) ? product.variations : Object.values(product.variations);
+                    console.log('Variations for product:', variations);
+                    selectedVariation = variations.find(v => {
+                        const attributeValues = Object.values(v.attributes || {}).map(val => String(val));
+                        console.log(`Checking variation ${v.variation_id}, attributes:`, attributeValues);
+                        return attributeValues.includes(String(termId));
+                    });
+                    console.log('Selected variation:', selectedVariation);
+                } else {
+                    console.warn(`No product or variations found for productId: ${productId}`);
+                }
+
+                if (selectedVariation) {
+                    // Update price
+                    const price = selectedVariation.sale_price || selectedVariation.price;
+                    priceElement.textContent = `$${parseFloat(price).toFixed(2)}`;
+                    console.log(`Updated price to: $${parseFloat(price).toFixed(2)}`);
+
+                    // Update SKU
+                    skuElement.textContent = `SKU ${selectedVariation.sku || 'N/A'}`;
+                    console.log(`Updated SKU to: ${selectedVariation.sku || 'N/A'}`);
+
+                    // Update stock status
+                    const stockText = selectedVariation.stock_quantity > 0 ? 'In Stock' : 'Out of Stock';
+                    stockStatusElement.textContent = stockText;
+                    stockStatusElement.className = `stock-status ${selectedVariation.stock_quantity > 0 ? 'in-stock' : ''}`;
+                    console.log(`Updated stock status to: ${stockText}`);
+
+                    // Store variation ID
+                    variationInput.value = selectedVariation.variation_id;
+                    console.log(`Updated variation ID to: ${selectedVariation.variation_id}`);
+                } else {
+                    console.warn(`No variation found for termId: ${termId}`);
+                    // Revert to default if no variation found
+                    priceElement.textContent = `$${priceElement.getAttribute('data-default-price')}`;
+                    skuElement.textContent = `SKU ${skuElement.getAttribute('data-default-sku')}`;
+                    stockStatusElement.textContent = stockStatusElement.getAttribute('data-default-status');
+                    stockStatusElement.className = `stock-status ${stockStatusElement.getAttribute('data-default-status') === 'In Stock' ? 'in-stock' : ''}`;
+                    variationInput.value = '';
+                    console.log('Reverted to default values');
+                }
             });
         });
 
-        // Add to cart functionality for uniqued Products
+        // Add to cart functionality
         document.querySelectorAll('.unique .add-to-cart').forEach(button => {
             button.addEventListener('click', function () {
                 const productId = this.getAttribute('data-id');
                 const input = document.querySelector(`.unique .quantity-input[data-id="${productId}"]`);
-                const quantity = parseInt(input.value);
+                const variationInput = document.querySelector(`.unique .selected-variation[data-id="${productId}"]`);
+                const quantity = parseInt(input.value) || 0;
+                const variationId = variationInput.value;
 
-                if (quantity > 0) {
-                    alert(`Added ${quantity} of product ID ${productId} to cart`);
-                    // Here you would typically send this data to your cart system
-                    input.value = 0;
-                } else {
+                if (quantity <= 0) {
                     alert('Please select at least 1 item');
+                    return;
                 }
+
+                if (!variationId) {
+                    alert('Please select a variation (e.g., color or size) before adding to cart.');
+                    return;
+                }
+
+                console.log(`Adding to cart - Product: ${productId}, Variation: ${variationId}, Qty: ${quantity}`);
+
+                fetch('../../add_to_cart.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_id: productId,
+                        variation_id: variationId,
+                        quantity: quantity
+                    })
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => {
+                                throw new Error(text || 'Network response was not ok');
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            // Update cart badge directly with cart_count from response
+                            const cartCountElement = document.querySelector('#cart-count');
+                            if (cartCountElement) {
+                                cartCountElement.textContent = data.cart_count;
+                                cartCountElement.style.display = data.cart_count > 0 ? 'inline' : 'none';
+                            }
+
+                            // Reset UI
+                            input.value = 0; // Reset quantity
+                            variationInput.value = ''; // Reset variation
+                            const productCard = document.querySelector(`.product-card[data-product-id="${productId}"]`);
+                            productCard.querySelectorAll('.color-box, .box').forEach(el => el.classList.remove('selected'));
+                            productCard.querySelector('.product-price').textContent = `$${productCard.querySelector('.product-price').getAttribute('data-default-price')}`;
+                            productCard.querySelector('.product-sku').textContent = `SKU ${productCard.querySelector('.product-sku').getAttribute('data-default-sku')}`;
+                            productCard.querySelector('.stock-status').textContent = productCard.querySelector('.stock-status').getAttribute('data-default-status');
+                            productCard.querySelector('.stock-status').className = `stock-status ${productCard.querySelector('.stock-status').getAttribute('data-default-status') === 'In Stock' ? 'in-stock' : ''}`;
+
+                            alert(data.message); // Show success message
+                        } else {
+                            alert('Error adding to cart: ' + (data.message || 'Unknown error'));
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Fetch error:', error);
+                        // Log raw response for debugging
+                        fetch('./Pages/add_to_cart.php').then(res => res.text()).then(text => {
+                            console.log('Raw response:', text);
+                        });
+                        alert('Error adding to cart: ' + error.message);
+                    });
             });
         });
-    })
+    });
 </script>

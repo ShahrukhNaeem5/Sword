@@ -22,7 +22,6 @@ if ($conn->connect_error) {
 // Set charset to utf8mb4 for proper Unicode support
 $conn->set_charset("utf8mb4");
 
-// Function to safely close the database connection
 function closeDatabaseConnection() {
     global $conn;
     if (isset($conn)) {
@@ -30,7 +29,6 @@ function closeDatabaseConnection() {
     }
 }
 
-// Register shutdown function to close connection when script ends
 register_shutdown_function('closeDatabaseConnection');
 
 

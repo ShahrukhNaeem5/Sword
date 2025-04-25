@@ -1,4 +1,5 @@
 <?php
+session_start();
 include './Config/connection.php';
 
 
@@ -16,199 +17,26 @@ include './Config/connection.php';
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <link rel="stylesheet" href="./Assets/Css/style.css">
 
+    <style>
+        .product-body {
+            display: flex;
+            flex-direction: column;
+            min-height: 250px;
+            /* Ensure consistent height for alignment */
+        }
+
+        .quantity-control {
+            margin-top: auto;
+            /* Push to bottom of card */
+            padding-top: 10px;
+        }
+    </style>
 </head>
 
 <body>
-    <header class="bg-white">
-        <!-- Top information bar - Made responsive -->
-        <div class="top-info-bar">
-            <div class="container">
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
-                    <?php
-                    // Fetch menu items from database
-                    $sql = "SELECT * FROM `top_menu` ORDER BY top_menu_id ASC";
-                    $result = $conn->query($sql);
-
-                    // Start the HTML output
-                    echo '<div class="policy-links text-center text-md-start mb-2 mb-md-0">';
-
-                    // Check if there are results
-                    if ($result->num_rows > 0) {
-                        // Output data of each row
-                        while ($row = $result->fetch_assoc()) {
-                            echo '<a href="' . htmlspecialchars($row['menu_link']) . '">'
-                                . htmlspecialchars($row['menu_name']) . '</a>';
-                        }
-                    } else {
-                        // Fallback if no menu items are found
-                        echo '';
-                    }
-
-                    // Close the div
-                    echo '</div>';
-
-                    // Close connection
-                    
-                    // Assuming you already have a MySQLi connection variable $conn available
-                    
-                    // Fetch contact information from database
-                    $query = "SELECT phone, whatsapp, email FROM `contact_information` LIMIT 1";
-                    $result = $conn->query($query);
-
-                    // Check if query was successful and contains data
-                    if ($result && $result->num_rows > 0) {
-                        $contact = $result->fetch_assoc();
-
-                        // Output the contact information
-                        echo '<div class="contact-info d-flex flex-row flex-md-row gap-4 gap-md-4 text-center text-md-start">';
-                        echo '<span><i class="bi bi-telephone-fill text-brown"></i> ' . htmlspecialchars($contact['phone']) . '</span>';
-                        echo '<span><i class="bi bi-whatsapp text-brown"></i> ' . htmlspecialchars($contact['whatsapp']) . '</span>';
-                        echo '<a href="mailto:' . htmlspecialchars($contact['email']) . '" class="text-brown"><i class="bi bi-envelope-at-fill"></i> ' . htmlspecialchars($contact['email']) . '</a>';
-                        echo '</div>';
-                    } else {
-                        // Fallback if no contact info is found in database
-                        echo '';
-
-
-                    }
-                    ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main header with logo and search - Made responsive -->
-        <?php
-        // Fetch all logo assets from database
-        $assetsQuery = "SELECT desktop_logo, mobile_logo FROM `site_assets` ORDER BY id DESC LIMIT 1";
-        $assetsResult = $conn->query($assetsQuery);
-
-        // Set default logo paths
-        $defaultDesktopLogo = "./Assets/Images/logo.jpg";
-        $defaultMobileLogo = "./Assets/Images/logo-mobile.jpg";
-
-        // Initialize logo variables
-        $desktopLogo = $defaultDesktopLogo;
-        $mobileLogo = $defaultMobileLogo;
-
-        if ($assetsResult && $assetsResult->num_rows > 0) {
-            $assetsData = $assetsResult->fetch_assoc();
-            $desktopLogo = !empty($assetsData['desktop_logo']) ? $assetsData['desktop_logo'] : $defaultDesktopLogo;
-            $mobileLogo = !empty($assetsData['mobile_logo']) ? $assetsData['mobile_logo'] : $defaultMobileLogo;
-        }
-
-        // Simple device detection (you might want to use a more robust method)
-        $isMobile = preg_match("/(android|iphone|ipad|mobile)/i", $_SERVER['HTTP_USER_AGENT']);
-        $currentLogo = $isMobile ? $mobileLogo : $desktopLogo;
-        ?>
-
-        <div class="main-header">
-            <div class="container">
-                <div class="d-flex flex-wrap align-items-center justify-content-between">
-                    <!-- Search container remains the same -->
-                    <div class="search-container order-2 order-lg-1">
-                        <div class="search-box">
-                            <input type="search" class="form-control" placeholder="Search">
-                            <i class="bi bi-search"></i>
-                        </div>
-                    </div>
-
-                    <!-- Dynamic logo with srcset for responsive images -->
-                    <div class="logo-container order-1 order-lg-2 text-center">
-                        <img src="<?php echo htmlspecialchars($currentLogo); ?>" srcset="<?php echo htmlspecialchars($desktopLogo); ?> 1200w,
-                             <?php echo htmlspecialchars($mobileLogo); ?> 600w"
-                            sizes="(max-width: 768px) 600px, 1200px" alt="Company Logo" class="logo">
-                    </div>
-
-                    <!-- User actions remain the same -->
-                    <div class="user-actions order-3 order-lg-3">
-                        <a href="#"><i class="bi bi-box-arrow-in-right"></i> <span class="d-none d-md-inline">Sign
-                                In</span></a>
-                        <a href="#"><i class="bi bi-cart-check-fill"></i> <span class="d-none d-md-inline">Cart
-                                (0)</span></a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main navigation - Made responsive with Bootstrap toggle -->
-        <nav class="main-navigation navbar navbar-expand-lg">
-            <div class="container">
-                <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
-                    aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="mainNav">
-                    <ul class="navbar-nav mb-0 ps-0">
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">Home</a>
-                        </li>
-
-                        <!-- Category 1 Dropdown -->
-                        <li class="nav-item dropdown">
-                            <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
-                                Category 1 <i class="bi bi-chevron-down ms-1"></i>
-                            </a>
-                            <ul class="dropdown-menu bg-brown border-0 rounded-0 mt-0">
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 1</a></li>
-                                <li>
-                                    <hr class="dropdown-divider my-0" style="border-color: rgba(255,255,255,0.2);">
-                                </li>
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 2</a></li>
-                                <li>
-                                    <hr class="dropdown-divider my-0" style="border-color: rgba(255,255,255,0.2);">
-                                </li>
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 3</a></li>
-                            </ul>
-                        </li>
-
-                        <!-- Category 2 Dropdown -->
-                        <li class="nav-item dropdown">
-                            <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
-                                Category 2 <i class="bi bi-chevron-down ms-1"></i>
-                            </a>
-                            <ul class="dropdown-menu bg-brown border-0 rounded-0 mt-0">
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 1</a></li>
-                                <li>
-                                    <hr class="dropdown-divider my-0" style="border-color: rgba(255,255,255,0.2);">
-                                </li>
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 2</a></li>
-                                <li>
-                                    <hr class="dropdown-divider my-0" style="border-color: rgba(255,255,255,0.2);">
-                                </li>
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 3</a></li>
-                            </ul>
-                        </li>
-
-                        <!-- Category 3 Dropdown -->
-                        <li class="nav-item dropdown">
-                            <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
-                                Category 3 <i class="bi bi-chevron-down ms-1"></i>
-                            </a>
-                            <ul class="dropdown-menu bg-brown border-0 rounded-0 mt-0">
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 1</a></li>
-                                <li>
-                                    <hr class="dropdown-divider my-0" style="border-color: rgba(255,255,255,0.2);">
-                                </li>
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 2</a></li>
-                                <li>
-                                    <hr class="dropdown-divider my-0" style="border-color: rgba(255,255,255,0.2);">
-                                </li>
-                                <li><a class="dropdown-item text-white" href="#">Subcategory 3</a></li>
-                            </ul>
-                        </li>
-
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">About Us</a>
-                        </li>
-                        <li class="nav-item">
-                            <a href="#" class="nav-link">Contact</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
+    <?php
+    include './Pages/Components/Header.php';
+    ?>
 
     <!-- SLIDER -->
 
@@ -294,38 +122,43 @@ include './Config/connection.php';
         </div>
     </div>
 
+
+
+
+
     <!-- CUSTOM CATEGORY-1 -->
-   <?php 
-   include './Pages/Components/Categories.php'
-   ?>
+    <?php
+    include './Pages/Components/Parent_category.php';
+    include './Pages/Components/Categories.php';
+        ?>
     <!-- CUSTOM CATEGORY-1 END-->
 
 
 
 
     <!-- Featured Page -->
-   <?php
-      include './Pages/Components/Product_featured.php'
+    <?php
+    include './Pages/Components/Product_featured.php'
 
-   ?>
+        ?>
 
 
 
 
     <!-- Unique Pprduct -->
-    
 
 
-   
+
+
 
 
     <!-- Footer -->
-   <?php
-   include './Pages/Components/Product_unique.php';
-   include './Pages/Components/Product_latest.php';
-   include './Pages/Components/Footer.php';
-   
-   ?>
+    <?php
+    include './Pages/Components/Product_unique.php';
+    include './Pages/Components/Product_latest.php';
+    include './Pages/Components/Footer.php';
+
+    ?>
 
     <!-- Footer END -->
 
@@ -337,7 +170,7 @@ include './Config/connection.php';
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-           
+
 
 
             /* THIRD swiper*/
@@ -370,7 +203,7 @@ include './Config/connection.php';
 
 
 
-          
+
 
             /* UNIQUE */
             // Quantity control functionality for Latest Products
@@ -408,49 +241,14 @@ include './Config/connection.php';
             });
 
 
-            // Initialize carousel
-            var myCarousel = new bootstrap.Carousel(document.getElementById('categoryCarousel'), {
-                interval: false,
-                wrap: true,
-                touch: true
-            });
 
-            // Handle window resize
-            function handleResize() {
-                const carousel = document.getElementById('categoryCarousel');
-                if (window.innerWidth < 576) {
-                    // Mobile - one item
-                    carousel.querySelectorAll('.carousel-item .row > div').forEach(item => {
-                        item.style.flex = '0 0 100%';
-                        item.style.maxWidth = '100%';
-                    });
-                } else if (window.innerWidth < 992) {
-                    // Tablet - two items
-                    carousel.querySelectorAll('.carousel-item .row > div').forEach(item => {
-                        item.style.flex = '0 0 50%';
-                        item.style.maxWidth = '50%';
-                    });
-                } else {
-                    // Desktop - three items
-                    carousel.querySelectorAll('.carousel-item .row > div').forEach(item => {
-                        item.style.flex = '0 0 33.33%';
-                        item.style.maxWidth = '33.33%';
-                    });
-                }
-            }
-
-            // Initial call
-            handleResize();
-
-            // Listen for resize events
-            window.addEventListener('resize', handleResize);
         });
     </script>
 
 
 
 
-    
+
 
 </body>
 
